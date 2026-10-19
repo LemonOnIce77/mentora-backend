@@ -8,15 +8,32 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     * SCRUM-89 [DB] Membuat migrasi tabel Users (Mentora Specification)
      */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->string('nama_lengkap');
+            $table->string('nama_panggilan')->nullable();
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->string('universitas')->nullable();
+            $table->string('prodi')->nullable();
+            $table->string('semester')->nullable();
+            $table->string('domisili')->nullable();
+            $table->string('tgl_lahir')->nullable();
+            $table->text('bio')->nullable();
+            $table->string('foto_profil')->nullable();
+            $table->string('mode_sesi')->default('Fleksibel');
+            $table->string('role')->default('Mentee'); // Mentee, Mentor, Admin
+            $table->string('status_mentor')->default('NONE'); // NONE, PENDING, APPROVED, REJECTED
+            $table->string('dokumen_kredensial')->nullable();
+            $table->integer('total_poin')->default(0);
+            $table->double('latitude')->nullable();
+            $table->double('longitude')->nullable();
+            $table->boolean('onboarding_completed')->default(false);
             $table->rememberToken();
             $table->timestamps();
         });
