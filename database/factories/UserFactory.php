@@ -13,28 +13,60 @@ use Illuminate\Support\Str;
 class UserFactory extends Factory
 {
     /**
-     * The current password being used by the factory.
+     * Password yang dipakai factory (di-hash sekali, dipakai ulang).
      */
     protected static ?string $password;
 
     /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
+     * State default: akun Mentee biasa.
+     * Kolom disesuaikan dengan migrasi tabel users Mentora.
      */
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'nama_lengkap' => fake()->name(),
+            'nama_panggilan' => fake()->firstName(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
+            'password' => static::$password ??= Hash::make('password123'),
+            'universitas' => 'Universitas Telkom',
+            'prodi' => fake()->randomElement(['Sistem Informasi', 'Informatika', 'Desain Komunikasi Visual']),
+            'semester' => (string) fake()->numberBetween(1, 8),
+            'domisili' => 'Bandung, Jawa Barat',
+            'bio' => fake()->sentence(),
+            'mode_sesi' => 'Fleksibel',
+            'role' => 'Mentee',
+            'status_mentor' => 'NONE',
+            'total_poin' => 0,
+            'onboarding_completed' => true,
             'remember_token' => Str::random(10),
         ];
     }
 
     /**
-     * Indicate that the model's email address should be unverified.
+     * Akun Mentor yang sudah disetujui Admin.
+     */
+    public function mentor(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'Mentor',
+            'status_mentor' => 'APPROVED',
+        ]);
+    }
+
+    /**
+     * Akun Admin.
+     */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'Admin',
+            'status_mentor' => 'NONE',
+        ]);
+    }
+
+    /**
+     * Email belum terverifikasi.
      */
     public function unverified(): static
     {
