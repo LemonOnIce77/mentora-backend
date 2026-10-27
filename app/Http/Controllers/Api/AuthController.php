@@ -4,12 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
+    /**
+     * Jumlah maksimal token aktif per akun (mis. laptop + HP + beberapa browser).
+     * Token paling lama otomatis dihapus supaya tabel personal_access_tokens tidak menumpuk.
+     */
+    private const MAX_ACTIVE_TOKENS = 5;
+
     /**
      * SCRUM-90: [FR-01][BE] Membuat endpoint registrasi
      */
@@ -36,19 +43,37 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $email = strtolower(trim($request->email));
+
         // Create user with default role Mentee and hashed password (bcrypt)
-        $user = User::create([
-            'nama_lengkap' => trim($request->nama_lengkap),
-            'email' => strtolower(trim($request->email)),
-            'password' => Hash::make($request->password),
-            'role' => 'Mentee',
-            'status_mentor' => 'NONE',
-            'total_poin' => 0,
-            'onboarding_completed' => false,
-        ]);
+        try {
+            $user = User::create([
+                'nama_lengkap' => trim($request->nama_lengkap),
+                'email' => $email,
+                'password' => Hash::make($request->password),
+                'role' => 'Mentee',
+                'status_mentor' => 'NONE',
+                'total_poin' => 0,
+                'onboarding_completed' => false,
+            ]);
+        } catch (QueryException $e) {
+            // Dua request bersamaan bisa lolos validasi 'unique' lalu bentrok di unique index database.
+            // Jika penyebabnya email ganda, balas 422 yang sama seperti validasi biasa (bukan error 500).
+            if (($e->errorInfo[0] ?? null) === '23000' && User::where('email', $email)->exists()) {
+                $message = 'Email sudah terdaftar. Silakan gunakan email lain atau login.';
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'errors' => ['email' => [$message]],
+                ], 422);
+            }
+
+            throw $e;
+        }
 
         // Generate API token
-        $token = $user->createToken('mentora_auth_token')->plainTextToken;
+        $token = $this->issueToken($user);
 
         return response()->json([
             'success' => true,
@@ -98,7 +123,7 @@ class AuthController extends Controller
         }
 
         // Generate API token
-        $token = $user->createToken('mentora_auth_token')->plainTextToken;
+        $token = $this->issueToken($user);
 
         return response()->json([
             'success' => true,
@@ -145,5 +170,22 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Logout berhasil. Token telah dicabut.',
         ]);
+    }
+
+    /**
+     * Buat token baru dan hapus token lama yang melebihi batas MAX_ACTIVE_TOKENS.
+     */
+    private function issueToken(User $user): string
+    {
+        $token = $user->createToken('mentora_auth_token')->plainTextToken;
+
+        $keepIds = $user->tokens()
+            ->latest('id')
+            ->limit(self::MAX_ACTIVE_TOKENS)
+            ->pluck('id');
+
+        $user->tokens()->whereNotIn('id', $keepIds)->delete();
+
+        return $token;
     }
 }
