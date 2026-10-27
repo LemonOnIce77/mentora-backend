@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\MentorApplicationController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\SkillController;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 | FR-01: Registrasi dan Login (Endpoint registrasi & autentikasi login)
 | FR-02: Manajemen Profil Pengguna & Lokasi (Endpoint lihat & update profil)
 | FR-03: Pengelolaan Skill (Master Skill & CRUD User Skills)
+| FR-04: Pengajuan Akun Mentor (Apply, Status, & Admin Review)
 */
 
 // Public Endpoints
@@ -38,4 +40,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/skills', [SkillController::class, 'storeUserSkill']);
     Route::put('/user/skills/{id}', [SkillController::class, 'updateUserSkill']);
     Route::delete('/user/skills/{id}', [SkillController::class, 'destroyUserSkill']);
+
+    // FR-04: Pengajuan Akun Mentor & Verifikasi Admin
+    Route::post('/mentor/apply', [MentorApplicationController::class, 'apply']);
+    Route::get('/mentor/status', [MentorApplicationController::class, 'status']);
+    Route::get('/admin/mentor-applications', [MentorApplicationController::class, 'indexAdmin']);
+    Route::post('/admin/mentor-applications/{id}/review', [MentorApplicationController::class, 'reviewAdmin']);
 });
