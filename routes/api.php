@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\SkillController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -11,11 +12,16 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | FR-01: Registrasi dan Login (Endpoint registrasi & autentikasi login)
 | FR-02: Manajemen Profil Pengguna & Lokasi (Endpoint lihat & update profil)
+| FR-03: Pengelolaan Skill (Master Skill & CRUD User Skills)
 */
 
-// Public Authentication Endpoints
+// Public Endpoints
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+// FR-03: Katalog Master Skill (Publik)
+Route::get('/skills', [SkillController::class, 'index']);
+Route::get('/skills/categories', [SkillController::class, 'categories']);
 
 // Protected User Session Endpoints (auth:sanctum)
 Route::middleware('auth:sanctum')->group(function () {
@@ -26,4 +32,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::post('/profile/location', [ProfileController::class, 'updateLocation']);
+
+    // FR-03: CRUD Skill Pengguna (Teach & Learn)
+    Route::get('/user/skills', [SkillController::class, 'userSkills']);
+    Route::post('/user/skills', [SkillController::class, 'storeUserSkill']);
+    Route::put('/user/skills/{id}', [SkillController::class, 'updateUserSkill']);
+    Route::delete('/user/skills/{id}', [SkillController::class, 'destroyUserSkill']);
 });

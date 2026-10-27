@@ -47,4 +47,45 @@ class User extends Authenticatable
             'total_poin' => 'integer',
         ];
     }
+
+    // FR-03: Relasi Skill Pengguna
+    public function userSkills()
+    {
+        return $this->hasMany(UserSkill::class);
+    }
+
+    public function skills()
+    {
+        return $this->belongsToMany(Skill::class, 'user_skills')
+            ->withPivot('id', 'type', 'level', 'deskripsi_pengalaman')
+            ->withTimestamps();
+    }
+
+    public function teachSkills()
+    {
+        return $this->belongsToMany(Skill::class, 'user_skills')
+            ->wherePivot('type', 'teach')
+            ->withPivot('id', 'level', 'deskripsi_pengalaman')
+            ->withTimestamps();
+    }
+
+    public function learnSkills()
+    {
+        return $this->belongsToMany(Skill::class, 'user_skills')
+            ->wherePivot('type', 'learn')
+            ->withPivot('id', 'level', 'deskripsi_pengalaman')
+            ->withTimestamps();
+    }
+
+    // FR-04: Relasi Pengajuan Mentor
+    public function mentorApplications()
+    {
+        return $this->hasMany(MentorApplication::class);
+    }
+
+    // FR-05: Relasi Dokumen Kredensial
+    public function credentials()
+    {
+        return $this->hasMany(MentorCredential::class);
+    }
 }
