@@ -56,5 +56,8 @@ class DatabaseSeeder extends Seeder
                 ]
             );
         }
+
+        // Master data skill (katalog skill untuk FR-03)
+        $this->call(SkillSeeder::class);
     }
 }
