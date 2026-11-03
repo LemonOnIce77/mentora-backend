@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\MentorApplication;
+use App\Models\MentorCredential;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MentorApplicationController extends Controller
 {
@@ -51,17 +54,45 @@ class MentorApplicationController extends Controller
             'tautan_portofolio' => 'nullable|url|max:255',
         ]);
 
-        $application = MentorApplication::create([
-            'user_id' => $user->id,
-            'alasan_mengajar' => $validated['alasan_mengajar'],
-            'bidang_keahlian' => $validated['bidang_keahlian'],
-            'tahun_pengalaman' => $validated['tahun_pengalaman'],
-            'tautan_portofolio' => $validated['tautan_portofolio'] ?? null,
-            'status' => 'PENDING',
-        ]);
+        // Seluruh perubahan (pengajuan, dokumen, status user) disimpan dalam satu transaksi
+        $application = DB::transaction(function () use ($user, $validated) {
+            // Kunci baris user agar dua request bersamaan tidak sama-sama lolos cek PENDING
+            $lockedUser = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
 
-        // Update status_mentor pada user menjadi PENDING
-        $user->update(['status_mentor' => 'PENDING']);
+            $hasPending = MentorApplication::where('user_id', $lockedUser->id)
+                ->where('status', 'PENDING')
+                ->exists();
+
+            if ($hasPending) {
+                return null;
+            }
+
+            $application = MentorApplication::create([
+                'user_id' => $lockedUser->id,
+                'alasan_mengajar' => $validated['alasan_mengajar'],
+                'bidang_keahlian' => $validated['bidang_keahlian'],
+                'tahun_pengalaman' => $validated['tahun_pengalaman'],
+                'tautan_portofolio' => $validated['tautan_portofolio'] ?? null,
+                'status' => 'PENDING',
+            ]);
+
+            // Kaitkan dokumen kredensial yang sudah diunggah sebelum pengajuan dikirim
+            MentorCredential::where('user_id', $lockedUser->id)
+                ->whereNull('mentor_application_id')
+                ->update(['mentor_application_id' => $application->id]);
+
+            // Update status_mentor pada user menjadi PENDING
+            $lockedUser->update(['status_mentor' => 'PENDING']);
+
+            return $application;
+        });
+
+        if ($application === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah memiliki pengajuan mentor yang sedang dalam proses review.',
+            ], 422);
+        }
 
         return response()->json([
             'success' => true,
@@ -140,25 +171,43 @@ class MentorApplicationController extends Controller
             'catatan_admin' => 'nullable|string|max:1000',
         ]);
 
-        $application = MentorApplication::with('user')->findOrFail($id);
+        // Review dilakukan dalam satu transaksi dan hanya boleh sekali (status harus masih PENDING)
+        $result = DB::transaction(function () use ($id, $admin, $validated) {
+            $application = MentorApplication::whereKey($id)->lockForUpdate()->firstOrFail();
 
-        $application->update([
-            'status' => $validated['status'],
-            'catatan_admin' => $validated['catatan_admin'] ?? null,
-            'reviewed_by' => $admin->id,
-            'reviewed_at' => now(),
-        ]);
+            if ($application->status !== 'PENDING') {
+                return ['reviewed' => false, 'application' => $application];
+            }
 
-        // Perbarui status_mentor pada pengguna terkait
-        $targetUser = $application->user;
-        $targetUser->status_mentor = $validated['status'];
+            $application->update([
+                'status' => $validated['status'],
+                'catatan_admin' => $validated['catatan_admin'] ?? null,
+                'reviewed_by' => $admin->id,
+                'reviewed_at' => now(),
+            ]);
 
-        if ($validated['status'] === 'APPROVED') {
-            // Tambahkan poin apresiasi mentor baru (10 poin)
-            $targetUser->total_poin = ($targetUser->total_poin ?? 0) + 10;
+            // Perbarui status_mentor pada pengguna terkait
+            $targetUser = User::whereKey($application->user_id)->lockForUpdate()->firstOrFail();
+            $targetUser->status_mentor = $validated['status'];
+
+            if ($validated['status'] === 'APPROVED') {
+                // Tambahkan poin apresiasi mentor baru (10 poin), hanya sekali
+                $targetUser->total_poin = ($targetUser->total_poin ?? 0) + 10;
+            }
+
+            $targetUser->save();
+
+            return ['reviewed' => true, 'application' => $application];
+        });
+
+        if (!$result['reviewed']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah direview sebelumnya (status: ' . $result['application']->status . ').',
+            ], 422);
         }
 
-        $targetUser->save();
+        $application = $result['application'];
 
         return response()->json([
             'success' => true,

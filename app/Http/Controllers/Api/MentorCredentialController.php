@@ -3,13 +3,24 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\MentorApplication;
 use App\Models\MentorCredential;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class MentorCredentialController extends Controller
 {
+    /**
+     * Disk penyimpanan dokumen kredensial (default: private 'local').
+     * Dapat dialihkan ke S3/Supabase lewat CREDENTIAL_DISK di .env tanpa mengubah kode.
+     */
+    private function disk(): string
+    {
+        return config('mentora.credential_disk', 'local');
+    }
+
     /**
      * SCRUM-113: Mengunggah berkas dokumen kredensial calon mentor
      * POST /api/mentor/credentials
@@ -25,8 +36,13 @@ class MentorCredentialController extends Controller
             ],
             'jenis_dokumen' => 'required|in:transkrip,sertifikat,portofolio',
             'judul_dokumen' => 'required|string|max:255',
-            'mentor_application_id' => 'nullable|exists:mentor_applications,id',
+            // Hanya boleh mengaitkan dokumen ke pengajuan milik sendiri
+            'mentor_application_id' => [
+                'nullable',
+                Rule::exists('mentor_applications', 'id')->where('user_id', $request->user()->id),
+            ],
         ], [
+            'mentor_application_id.exists' => 'Pengajuan mentor tidak ditemukan atau bukan milik Anda.',
             'file.required' => 'Berkas dokumen wajib diunggah.',
             'file.mimes' => 'Format berkas harus berupa PDF, JPG, JPEG, atau PNG.',
             'file.max' => 'Ukuran berkas melebihi batas maksimal 5 MB.',
@@ -44,11 +60,15 @@ class MentorCredentialController extends Controller
         $safeFileName = Str::uuid() . '.' . $extension;
         $directory = 'credentials/' . $user->id;
 
-        $filePath = $file->storeAs($directory, $safeFileName, 'local');
+        $filePath = $file->storeAs($directory, $safeFileName, $this->disk());
+
+        // Jika tidak disebutkan, kaitkan ke pengajuan mentor yang sedang PENDING (bila ada)
+        $applicationId = $request->mentor_application_id
+            ?: MentorApplication::where('user_id', $user->id)->where('status', 'PENDING')->value('id');
 
         $credential = MentorCredential::create([
             'user_id' => $user->id,
-            'mentor_application_id' => $request->mentor_application_id,
+            'mentor_application_id' => $applicationId,
             'jenis_dokumen' => $request->jenis_dokumen,
             'judul_dokumen' => $request->judul_dokumen,
             'file_path' => $filePath,
@@ -120,14 +140,17 @@ class MentorCredentialController extends Controller
             ], 403);
         }
 
-        if (!Storage::disk('local')->exists($credential->file_path)) {
+        if (!Storage::disk($this->disk())->exists($credential->file_path)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Berkas fisik dokumen tidak ditemukan di server.',
             ], 404);
         }
 
-        return Storage::disk('local')->download($credential->file_path, $credential->file_name);
+                /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk($this->disk());
+
+        return $disk->download($credential->file_path, $credential->file_name);
     }
 
     /**
@@ -147,8 +170,20 @@ class MentorCredentialController extends Controller
             ], 403);
         }
 
-        if (Storage::disk('local')->exists($credential->file_path)) {
-            Storage::disk('local')->delete($credential->file_path);
+        // Dokumen yang terkait pengajuan PENDING/APPROVED adalah bukti verifikasi: pemilik tidak boleh menghapusnya
+        if ($credential->user_id === $user->id && $user->role !== 'Admin' && $credential->mentor_application_id) {
+            $statusPengajuan = MentorApplication::whereKey($credential->mentor_application_id)->value('status');
+
+            if (in_array($statusPengajuan, ['PENDING', 'APPROVED'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dokumen tidak dapat dihapus karena terkait pengajuan mentor yang sedang diproses atau sudah disetujui.',
+                ], 422);
+            }
+        }
+
+        if (Storage::disk($this->disk())->exists($credential->file_path)) {
+            Storage::disk($this->disk())->delete($credential->file_path);
         }
 
         $credential->delete();
