@@ -84,6 +84,7 @@ class ProfileTest extends TestCase
             'nama_panggilan' => 'Adit',
             'prodi' => 'Informatika',
             'mode_sesi' => 'Fleksibel',
+            'onboarding_completed' => true,
         ]);
     }
 

@@ -96,6 +96,13 @@ class ProfileController extends Controller
             }
         }
 
+        // Tandai onboarding_completed jika dikirim secara eksplisit atau data profil pokok sudah lengkap
+        if ($request->has('onboarding_completed')) {
+            $user->onboarding_completed = $request->boolean('onboarding_completed');
+        } elseif ($user->universitas && $user->prodi && $user->domisili) {
+            $user->onboarding_completed = true;
+        }
+
         $user->save();
 
         return response()->json([
