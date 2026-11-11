@@ -88,4 +88,49 @@ class User extends Authenticatable
     {
         return $this->hasMany(MentorCredential::class);
     }
+
+    public function schedules()
+    {
+        return $this->hasMany(JadwalKetersediaan::class);
+    }
+
+    public function mentorSessions()
+    {
+        return $this->hasMany(SesiExchange::class, 'mentor_id');
+    }
+
+    public function menteeSessions()
+    {
+        return $this->hasMany(SesiExchange::class, 'mentee_id');
+    }
+
+    public function sentMessages()
+    {
+        return $this->hasMany(ChatMessage::class, 'pengirim_id');
+    }
+
+    public function receivedMessages()
+    {
+        return $this->hasMany(ChatMessage::class, 'penerima_id');
+    }
+
+    public function reviewsGiven()
+    {
+        return $this->hasMany(Review::class, 'reviewer_id');
+    }
+
+    public function reviewsReceived()
+    {
+        return $this->hasMany(Review::class, 'reviewed_user_id');
+    }
+
+    public function pointHistory()
+    {
+        return $this->hasMany(RiwayatPoin::class);
+    }
+
+    public function certificates()
+    {
+        return $this->hasMany(ECertificate::class);
+    }
 }

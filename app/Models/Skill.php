@@ -27,4 +27,9 @@ class Skill extends Model
             ->withPivot('type', 'level', 'deskripsi_pengalaman')
             ->withTimestamps();
     }
+
+    public function sessions()
+    {
+        return $this->hasMany(SesiExchange::class);
+    }
 }
