@@ -124,6 +124,28 @@ class MentorApplicationController extends Controller
     }
 
     /**
+     * SCRUM-119: Melihat detail satu pengajuan mentor beserta dokumen kredensial (Khusus Admin)
+     * GET /api/admin/mentor-applications/{id}
+     */
+    public function showAdmin(Request $request, $id)
+    {
+        $user = $request->user();
+        if ($user->role !== 'Admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Endpoint ini hanya untuk Administrator.',
+            ], 403);
+        }
+
+        $application = MentorApplication::with(['user', 'credentials'])->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $application,
+        ]);
+    }
+
+    /**
      * SCRUM-108: Melihat daftar seluruh pengajuan mentor (Khusus Admin)
      * GET /api/admin/mentor-applications
      */
