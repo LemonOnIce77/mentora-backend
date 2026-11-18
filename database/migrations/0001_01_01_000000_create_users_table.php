@@ -25,11 +25,11 @@ return new class extends Migration
             $table->string('domisili')->nullable();
             $table->string('tgl_lahir')->nullable();
             $table->text('bio')->nullable();
-            $table->string('foto_profil')->nullable();
+            $table->longText('foto_profil')->nullable();
             $table->string('mode_sesi')->default('Fleksibel');
             $table->string('role')->default('Mentee'); // Mentee, Mentor, Admin
             $table->string('status_mentor')->default('NONE'); // NONE, PENDING, APPROVED, REJECTED
-            $table->string('dokumen_kredensial')->nullable();
+            $table->longText('dokumen_kredensial')->nullable();
             $table->integer('total_poin')->default(0);
             $table->double('latitude')->nullable();
             $table->double('longitude')->nullable();
